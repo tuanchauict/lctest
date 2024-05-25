@@ -1,12 +1,11 @@
 from random import Random
 import typing
 
-from pygments.console import colorize as f
-
 import time
 import json
 
 from lctest.lib import linked_list_to_array
+from lctest.text_format import textformat
 
 
 def audit(text=''):
@@ -48,9 +47,9 @@ def run(times=1):
         has_parameter = len(inspect.signature(fun).parameters) > 0
 
         def wrapper():
-            print(f"Running {f('green', f('bold', fun.__name__))}")
+            print(textformat(f"Running <green><bold>{fun.__name__}</>"))
             for i in range(times):
-                print(f("gray", f"---------#{i + 1}---------"))
+                print(f"<gray>---------#{i + 1}---------</c>")
                 args = [i] if has_parameter else []
                 fun(*args)
 

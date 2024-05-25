@@ -1,11 +1,12 @@
 from traceback import TracebackException
 
+from lctest.text_format import textformat
+
 try:
     # noinspection PyUnresolvedReferences
     from StringIO import StringIO
 except:
     from io import StringIO
-from pygments.console import colorize
 import sys
 import time
 import copy
@@ -45,6 +46,13 @@ def log(*args):
     """
     return Testcase(args, is_log=True)
 
+def skip_result(*args):
+    """
+    Shorthand to create a testcase that skips printing result.
+    Mainly for measuring the performance.
+    """
+    return Testcase(args, print_result=False)
+
 
 def testcase(*testcases, log=False, param_length_limit=100):
     is_printable = log or len(testcases) == 1
@@ -66,14 +74,14 @@ def testcase(*testcases, log=False, param_length_limit=100):
             fun.__dict__[TESTCASES] = testcases
             return fun
 
-        print(f"{f('cyan', 'Test result for')} {f('brightgreen', f('bold', fun.__name__))}:")
+        print(textformat(f"<cyan>Test result for</c> <blue><b>{fun.__name__}</>"))
         return wrapper()
 
     def deco_class(cls):
         def wrapper():
             for fun_name, testcases in get_runnable_methods_and_testcases():
                 obj = cls()
-                print(f"{f('cyan', 'Test result for')} {cls.__name__}.{f('brightgreen', f('bold', fun_name))}:")
+                print(textformat(f"<b:brightblack>Test result for</> <b><i>{cls.__name__}</>.<brightmagenta><b>{fun_name}</>"))
                 execute(obj.__getattribute__(fun_name), testcases)
 
         def get_runnable_methods_and_testcases():
@@ -110,6 +118,8 @@ def testcase(*testcases, log=False, param_length_limit=100):
                 result = fun(*case.params_snapshot)
                 runtime = (time.time() - t0) * 1000
                 printer.print_result(result, runtime)
+            except KeyboardInterrupt:
+                raise
             except:
                 printer.print_error()
 
@@ -117,11 +127,12 @@ def testcase(*testcases, log=False, param_length_limit=100):
 
 
 class _TestPrinter:
-    def __init__(self, params_text, params, expected, is_test_printable):
+    def __init__(self, params_text, params, expected, is_test_printable, is_result_printable):
         self.params_text = params_text
         self.params = params
         self.expected = expected
         self.is_test_printable = is_test_printable
+        self.is_result_printable = is_result_printable
 
         self.output = StringIO()
 
@@ -129,30 +140,33 @@ class _TestPrinter:
             sys.stdout = self.output
         else:
             # Use gray color for log
-            print(f('gray', '▼', keep_format=True))
+            print(textformat("<gray><f>▼"))
 
     def print_result(self, result, runtime):
         sys.stdout = sys.__stdout__
         # Reset gray color of log
-        print(f("", ""), end='')
+        print(textformat("</>"), end="")
 
         is_correct, formatted_result, formatted_expected = self._result_to_text(result)
+        if not self.is_result_printable:
+            formatted_result = textformat("<brightblack>[result is hidden]</c>")
+
         arrow = self._format(is_correct, '➜', '➜', '➜') if not callable(self.expected) else self._format(is_correct,
                                                                                                          '»', '»', '»')
         check = self._format(is_correct, '✔✔', '𐄂𐄂', '⚑⚑')
 
-        runtime_text = f('gray', "(%.3fms)" % runtime)
+        runtime_text = textformat(f"<f><i>{runtime:.3f}ms</>")
         print(self.params_text, arrow, formatted_result, check, runtime_text)
 
         if is_correct is not None and not is_correct:
             expected_title = 'Expected:'
             space = " " * (len(self.params_text) + 2 - len(expected_title))
-            print(f"{space}{f('gray', expected_title)} {formatted_expected}")
+            print(textformat(f"{space}<gray>{expected_title} {formatted_expected}</c>"))
 
         if is_correct is None or not is_correct:
             print_log = self.output.getvalue()
             if print_log:
-                print(f('brightyellow', str(print_log)))
+                print(textformat(f"<brightyellow>{str(print_log)}</c>"))
             else:
                 pass
         self.output.close()
@@ -176,22 +190,22 @@ class _TestPrinter:
         length = min(len(result_text), len(expected_text))
         for i in range(length):
             is_equal = result_text[i] == expected_text[i]
-            result_arr.append(result_text[i] if is_equal else f('red', result_text[i]))
-            expected_arr.append(expected_text[i] if is_equal else f('red', expected_text[i]))
+            result_arr.append(textformat(f"<red>{result_text[i]}</c>", enabled=not is_equal))
+            expected_arr.append(textformat(f"<red>{expected_text[i]}</c>", enabled=not is_equal))
         if length < len(result_text):
-            result_arr.append(f('red', result_text[length:]))
+            result_arr.append(textformat(f"<red>{result_text[length:]}</c>"))
         else:
-            expected_arr.append(f('red', expected_text[length:]))
+            expected_arr.append(f"<red>{expected_text[length:]}</c>")
         return expected == result, "".join(result_arr), "".join(expected_arr)
 
     @staticmethod
     def _format(is_correct, correct, wrong, unknown):
         if is_correct is None:
-            return f('yellow', unknown)
+            return textformat(f"<yellow>{unknown}</c>")
         elif is_correct:
-            return f('green', correct)
+            return textformat(f"<green>{correct}</c>")
         else:
-            return f('red', wrong)
+            return textformat(f"<red>{wrong}</c>")
 
     def print_error(self):
         print_log = self.output.getvalue().strip()
@@ -209,7 +223,7 @@ class _TestPrinter:
                 break
             trimmed_traceback_lines.insert(0, line)
         for line in trimmed_traceback_lines:
-            print(f('red', line), end="")
+            print(textformat(f"<red>{line}</c>"), end="")
         print()
 
 
@@ -243,20 +257,16 @@ class TestHelper:
 
         params_text = self.param_format % tuple(param_texts)
         is_case_loggable = self.is_test_printable or testcase.is_loggable
-        return _TestPrinter(params_text, testcase.params, testcase.expected, is_case_loggable)
+        return _TestPrinter(params_text, testcase.params, testcase.expected, is_case_loggable, testcase.print_result)
 
 
 class Testcase:
-    def __init__(self, args, is_log=False):
+    def __init__(self, args, is_log=False, print_result=True):
         self.expected = args[0]
         self.params = args[1:]
         self.is_loggable = is_log
+        self.print_result = print_result
 
     @property
     def params_snapshot(self):
         return copy.deepcopy(self.params)
-
-
-def f(color, text, keep_format=False):
-    formatted_text = colorize(color, text)
-    return formatted_text if not keep_format else formatted_text[:-11]

@@ -156,3 +156,8 @@ def print_table(table):
     for row in table:
         print("".join([format_str % item for item in row]))
     print()
+
+
+def print_json(obj):
+    import json
+    print(json.dumps(obj, indent=4))
