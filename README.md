@@ -4,7 +4,7 @@ A small library for simulate running leetcode
 
 ## Installation
 ```
-pip3 install lctest
+pip install lctest
 ```
 See more on [PyPi/lctest](https://pypi.org/project/lctest/)
 ## Sample
