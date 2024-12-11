@@ -6,7 +6,7 @@ A small library for simulate running leetcode
 ```
 pip3 install lctest
 ```
-
+See more at: https://www.piwheels.org/project/lctest/
 ## Sample
 
 ```python
